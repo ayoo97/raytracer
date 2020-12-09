@@ -1,3 +1,5 @@
+// the following header file is from https://raytracing.github.io/books/RayTracingInOneWeekend.html
+
 #ifndef COLOR_H
 #define COLOR_H
 
