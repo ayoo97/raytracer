@@ -8,13 +8,17 @@
 class ray {
 
     public:
+        // MEMBERS
         point3 orig;
         vec3 dir;
 
     public:
+        // CONSTRUCTORS
         ray() {}
-        ray(const point3& origin, const vec3& direction) : orig(origin), dir(direction) {}
+        ray(const point3& origin, const vec3& direction)
+            : orig(origin), dir(direction) {}
 
+        // GETTER METHODS
         point3 origin() const { return orig; }
         vec3 direction() const { return dir; }
 
