@@ -4,20 +4,9 @@
 #include "color.h"
 #include "ray.h"
 #include "vec3.h"
+#include "raytracer.h"
 
 using namespace std;
-
-// color ray_color(const ray& r)
-// - takes in a ray, scales to unit length (-1.0 < y < 1.0),
-//   and blends white and blue depending on variable
-color ray_color(const ray& r) {
-    vec3 unit_direction = unit_vector(r.direction());
-    auto t = 0.5 * (unit_direction.y() + 1.0);
-
-    // linear interpolation
-    // blendedValue = (1 - t) * startValue + (t * endValue)
-    return (1.0 - t) * color(1.0, 1.0, 1.0) + (t * color(0.5, 0.7, 1.0));
-}
 
 int main() {
     
@@ -44,19 +33,8 @@ int main() {
 
     for (int j = image_height ; j >= 0 ; --j) {
         cerr << "\rScanlines remaining: " << j << ' ' << flush;         // Progress Indicator
-
         for (int i = 0 ; i < image_width ; ++i) {
-            /* SAMPLE IMAGE
-            auto r = double(i) / (image_width - 1);
-            auto g = double(j) / (image_height - 1);
-            auto b = 0.25;
-
-            int ir = static_cast<int>(255.999 * r);
-            int ig = static_cast<int>(255.999 * g);
-            int ib = static_cast<int>(255.999 * b);
-
-            std::cout << ir << ' ' << ig << ' ' << ib << '\n';*/
-            
+            // throughout the loop... image_width / -1 < u < image_width / 1
             auto u = double(i) / (image_width - 1);
             auto v = double(j) / (image_height - 1);
             ray r = ray(origin, lower_left_corner + (u * horizontal) + (v * vertical) - origin);
@@ -64,6 +42,5 @@ int main() {
             write_color(cout, pixel_color);
         }
     }
-
     cerr << "\nDone.\n";
 }
