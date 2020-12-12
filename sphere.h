@@ -1,4 +1,4 @@
-// the following header file is from https://raytracing.github.io/books/RayTracingInOneWeekend.html
+// some of the following header file is from https://raytracing.github.io/books/RayTracingInOneWeekend.html
 
 #ifndef SPHERE_H
 #define SPHERE_H
