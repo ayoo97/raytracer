@@ -11,11 +11,12 @@ class sphere : public hittable {
     public:
         point3 center;
         double radius;
+        shared_ptr<material> mat_ptr;
 
     public:
         sphere() {}
-        sphere(point3 cen, double r)
-            : center(cen), radius(r) {};
+        sphere(point3 cen, double r, shared_ptr<material> m)
+            : center(cen), radius(r), mat_ptr(m) {};
 
         // bool hit(const ray& r, double t_min, double t_max, hit_record& rec) const override
         // - takes in a ray, lower/upper bound, and a hit record
@@ -44,6 +45,7 @@ class sphere : public hittable {
             rec.p = r.at(rec.t);
             vec3 outward_normal = (rec.p - center) / radius;
             rec.set_face_normal(r, outward_normal);
+            rec.mat_ptr = mat_ptr;
 
             return true;
         }

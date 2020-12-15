@@ -56,6 +56,22 @@ class vec3 {
             return *this *= 1 / t;
         }
 
+        // RANDOM()
+        inline static vec3 random() {
+            return vec3(random_double(), random_double(), random_double());
+        }
+
+        inline static vec3 random(double min, double max) {
+            return vec3(random_double(min, max), random_double(min, max), random_double(min, max));
+        }
+
+        // Functions
+        bool near_zero() const {
+            // Return true if vec is close to zero in all dimensions
+            const auto s = 1e-8;
+            return (fabs(e[0] < s) && (fabs(e[1]) < s) && (fabs(e[2]) < s));
+        }
+
 };
 
 // ALIASES
@@ -105,6 +121,35 @@ inline vec3 cross(const vec3 &u, const vec3 &v) {
 
 inline vec3 unit_vector(vec3 v) {
     return v / v.length();
+}
+
+// vec3 random_in_unit_sphere()
+// - picks a random point in the unit cube, rejecting any points
+//   that are outside the sphere
+inline vec3 random_in_unit_sphere() {
+    while (true) {
+        auto p = vec3::random(-1, 1);
+        if (p.length_squared() >= 1) continue;
+        return p;
+    }
+}
+
+inline vec3 random_unit_vector() {
+    return unit_vector(random_in_unit_sphere());
+}
+
+// inline vec3 reflect(const vec3& v, const vec3& n)
+// - given a ray v and a normal n, returns the reflected ray
+//   which is v + 2b (v points into sphere so need a minus)
+inline vec3 reflect(const vec3& v, const vec3& n) {
+    return v - (2 * dot(v, n) * n);
+}
+
+inline vec3 refract(const vec3& uv, const vec3& n, double etai_over_etat) {
+    auto cos_theta = fmin(dot(-uv, n), 1.0);
+    vec3 r_out_perp = etai_over_etat * (uv + cos_theta * n);
+    vec3 r_out_parallel = -sqrt(fabs(1.0 - r_out_perp.length_squared())) * n;
+    return r_out_perp + r_out_parallel;
 }
 
 #endif
