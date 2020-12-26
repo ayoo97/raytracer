@@ -9,6 +9,23 @@
 #include <iostream>
 #include <mpi.h>
 
+// Global Scene
+// IMAGE
+const auto aspect_ratio = 16.0 / 9.0;
+const int image_width = 1920;
+const int image_height = static_cast<int>(image_width / aspect_ratio);
+const int samples_per_pixel = 300;
+const int max_depth = 50;
+
+// CAMERA
+point3 lookfrom(13, 2, 3);
+point3 lookat(0, 0, 0);
+vec3 vup(0, 1, 0);
+auto dist_to_focus = 10.0;
+auto aperture = 0.1;
+
+camera cam(lookfrom, lookat, vup, 20, aspect_ratio, aperture, dist_to_focus);
+
 
 // color ray_color(const ray& r, const hittable& world)
 // - takes in a ray and a hittable object 
@@ -86,61 +103,90 @@ hittable_list random_scene() {
     return world;
 }
 
+// raytrace(rank, size, rows_per_node)
+void raytrace(int rank, int size, int rows_per_node, hittable_list world) {
+    double local_image[rows_per_node][image_width][3];
+    double u, v;
+    ray r;
+    MPI_Request request;
+
+    cerr << "Inside Rank #" << rank << endl;
+
+    for (int j = rank ; j < image_height ; j += size) {
+        for (int i = 0 ; i < image_width ; i++) {
+            color pixel_color(0, 0, 0);
+            for (int s = 0 ; s < samples_per_pixel ; ++s) {
+                u = (double)(i + random_double()) / (image_width - 1);
+                v = (double)(j + random_double()) / (image_height - 1);
+                r = cam.get_ray(u, v);
+                pixel_color += ray_color(r, world, max_depth);
+            }
+            local_image[j / size][i][0] = pixel_color.x();
+            local_image[j / size][i][1] = pixel_color.y();
+            local_image[j / size][i][2] = pixel_color.z();
+        }
+    }
+
+    // Send message to node 0
+    MPI_Isend(&local_image, rows_per_node * image_width * 3, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &request);
+}
+
 int main(int argc, char *argv[]) {
-    
-    // IMAGE
-    const auto aspect_ratio = 3.0 / 2.0;
-    const int image_width = 300;
-    const int image_height = static_cast<int>(image_width / aspect_ratio);
-    const int samples_per_pixel = 50;
-    const int max_depth = 50;
+
+    // WORLD
+    hittable_list world = random_scene();
 
     // MPI
     // Rank Number (node id) and Rank Size (number of nodes)
+    int rank, size;
+    int rows_per_node;
 
-    // WORLD
- /*    hittable_list world;
+    // Initialize MPI
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    auto material_ground = make_shared<lambertian>(color(0.8, 0.8, 0.0));
-    auto material_center = make_shared<lambertian>(color(0.1, 0.2, 0.5));
-    auto material_left   = make_shared<dielectric>(1.5);
-    auto material_right  = make_shared<metal>(color(0.8, 0.6, 0.2), 0.0);
+    // Determine how many rows of pixels each node will be assigned
+    rows_per_node = image_height / size;
 
-    world.add(make_shared<sphere>(point3( 0.0, -100.5, -1.0), 100.0, material_ground));
-    world.add(make_shared<sphere>(point3( 0.0,    0.0, -1.0),   0.5, material_center));
-    world.add(make_shared<sphere>(point3(-1.0,    0.0, -1.0),   0.5, material_left));
-    world.add(make_shared<sphere>(point3(-1.0,    0.0, -1.0), -0.45, material_left));
-    world.add(make_shared<sphere>(point3( 1.0,    0.0, -1.0),   0.5, material_right)); */
-
-    hittable_list world = random_scene();
-
-    // CAMERA
-    point3 lookfrom(13, 2, 3);
-    point3 lookat(0, 0, 0);
-    vec3 vup(0, 1, 0);
-    auto dist_to_focus = 10.0;
-    auto aperture = 0.1;
-
-    camera cam(lookfrom, lookat, vup, 20, aspect_ratio, aperture, dist_to_focus);
+    // Node 0 starts timer.
+    double start_time, end_time;
+    if (rank == 0) {
+        start_time = MPI_Wtime();
+    }
 
     // RENDER
-    cout << "P3\n" << image_width << ' ' << image_height << "\n255\n";
+    // 1. Assign image rows (of pixels) to current node depending on its rankj and raytrace
+    raytrace(rank, size, rows_per_node, world);
 
-    // loops the pixels in each row (height) and column (width) and each
-    // sample within each pixel
-    for (int j = image_height ; j >= 0 ; --j) {
-        cerr << "\rScanlines remaining: " << j << ' ' << flush;         // Progress Indicator
-        for (int i = 0 ; i < image_width ; ++i) {
-            color pixel_color(0, 0, 0);
-            for (int s = 0 ; s < samples_per_pixel ; ++s) {
-                // for each sample in the current pixel increment the pixel_color
-                auto u = double(i + random_double()) / (image_width - 1);
-                auto v = double(j + random_double()) / (image_height - 1);
-                ray r = cam.get_ray(u, v);
-                pixel_color += ray_color(r, world, max_depth);
-            }
-            write_color(cout, pixel_color, samples_per_pixel);
+    // 2. In Node 0, send iamge to output
+    if (rank == 0) {
+        double whole_image[size][rows_per_node * image_width * 3];
+        
+        // Image Format
+        cout << "P3\n" << image_width << ' ' << image_height << "\n255\n";
+        
+        // Image
+        for (int r = 0 ; r < size ; r++) {
+            MPI_Recv(&whole_image[r], rows_per_node * image_width * 3, MPI_DOUBLE, r, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         }
+
+        // write image
+        for (int j = image_height - 1 ; j >= 0 ; j--) {
+            int n = j % size;
+            for (int i = 0 ; i < image_width ; i++) {
+                int ind = ((j / size) * image_width + i) * 3;
+                color pixel_color(whole_image[n][ind + 0],
+                                  whole_image[n][ind + 1],
+                                  whole_image[n][ind + 2]);
+                write_color(cout, pixel_color, samples_per_pixel);
+            }
+        }
+        // 4. End timer
+        end_time = MPI_Wtime();
+        cerr << "\nTime Elapsed: " << end_time - start_time << endl;
     }
-    cerr << "\nDone.\n";
+
+
+    MPI_Finalize();
 }
