@@ -110,9 +110,13 @@ void raytrace(int rank, int size, int rows_per_node, hittable_list world) {
     ray r;
     MPI_Request request;
 
+    // Progress Print Stmt
     cerr << "Inside Rank #" << rank << endl;
 
+    // "j" represents the pixel row number and is incremented by "size" (number of nodes)
+    // Aids in load distribution (explained below in main())
     for (int j = rank ; j < image_height ; j += size) {
+        // "i" represents the pixel column number incremented by 1 until end of image is reached
         for (int i = 0 ; i < image_width ; i++) {
             color pixel_color(0, 0, 0);
             for (int s = 0 ; s < samples_per_pixel ; ++s) {
@@ -156,10 +160,12 @@ int main(int argc, char *argv[]) {
     }
 
     // RENDER
-    // 1. Assign image rows (of pixels) to current node depending on its rankj and raytrace
+    // 1. Assign image rows (of pixels) to current node depending on its rank and raytrace
+    // Nodes are asssigned certain rows of pixels to maintain an efficient load distribution
+    // (don't want the same node to render same chunk)
     raytrace(rank, size, rows_per_node, world);
 
-    // 2. In Node 0, send iamge to output
+    // 2. In Node 0, send image to output
     if (rank == 0) {
         double whole_image[size][rows_per_node * image_width * 3];
         
@@ -171,7 +177,7 @@ int main(int argc, char *argv[]) {
             MPI_Recv(&whole_image[r], rows_per_node * image_width * 3, MPI_DOUBLE, r, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         }
 
-        // write image
+        // sample and write pixel colors
         for (int j = image_height - 1 ; j >= 0 ; j--) {
             int n = j % size;
             for (int i = 0 ; i < image_width ; i++) {
